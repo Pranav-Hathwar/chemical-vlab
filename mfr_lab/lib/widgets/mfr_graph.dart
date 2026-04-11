@@ -202,9 +202,11 @@ class _MFRGraphState extends State<MFRGraph> {
       lineBarsData: [
         // Index 0 — Best-fit dashed line through origin
         LineChartBarData(
-          spots: [FlSpot(0, 0), FlSpot(chartMaxX, slope * chartMaxX)],
-          color: _kBlue,
-          barWidth: 2,
+          spots: widget.trials.length >= 2 
+                 ? [const FlSpot(0, 0), FlSpot(chartMaxX, slope * chartMaxX)]
+                 : [const FlSpot(0, 0)],
+          color: widget.trials.length >= 2 ? _kBlue : Colors.transparent,
+          barWidth: widget.trials.length >= 2 ? 2 : 0,
           isCurved: false,
           dashArray: [10, 5],
           dotData: const FlDotData(show: false),
@@ -251,7 +253,7 @@ class _MFRGraphState extends State<MFRGraph> {
           });
         },
         touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (_) => _kBlue.withOpacity(0.92),
+          getTooltipColor: (_) => _kBlue.withValues(alpha: 0.92),
           tooltipRoundedRadius: 8,
           tooltipPadding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -321,9 +323,9 @@ class _MFRGraphState extends State<MFRGraph> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.93),
+        color: Colors.white.withValues(alpha: 0.93),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: _kBlue.withOpacity(0.25)),
+        border: Border.all(color: _kBlue.withValues(alpha: 0.25)),
         boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(1, 2)),
         ],

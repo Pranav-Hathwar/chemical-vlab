@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart';
@@ -53,7 +52,6 @@ abstract final class ExcelExporter {
 
   // ── Palette (ARGB hex, no '#') ───────────────────────────────────────────────
   static final ExcelColor _deepBlue   = ExcelColor.fromHexString('FF1A237E');
-  static final ExcelColor _amber      = ExcelColor.fromHexString('FFFFF8E1');
   static final ExcelColor _white      = ExcelColor.fromHexString('FFFFFFFF');
   static final ExcelColor _lightGrey  = ExcelColor.fromHexString('FFF5F5F5');
   static final ExcelColor _summaryBg  = ExcelColor.fromHexString('FFE8EAF6');
@@ -92,7 +90,7 @@ abstract final class ExcelExporter {
 
     final dateStr = DateFormat('dd-MM-yyyy_HH-mm').format(DateTime.now());
     final fileName = 'MFR_Lab_$dateStr.xlsx';
-    final mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     if (kIsWeb) {
       // ── 3. Web Download ──────────────────────────────────────────────────────
@@ -231,8 +229,8 @@ abstract final class ExcelExporter {
       ["Student's Determined k",  DoubleCellValue(_r(studentK))],
       ['Actual k (hidden)',        DoubleCellValue(_r(actualK))],
       ['Percentage Error (%)',     DoubleCellValue(_r(pctError))],
-      ['Min required trials',      IntCellValue(3)],
-      ['Max allowed trials',       IntCellValue(12)],
+      ['Min required trials',      const IntCellValue(3)],
+      ['Max allowed trials',       const IntCellValue(12)],
     ];
 
     for (int i = 0; i < summaryRows.length; i++) {
@@ -339,5 +337,5 @@ abstract final class ExcelExporter {
   }
 
   /// Rounds a double to 6 decimal places for consistent cell output.
-  static double _r(double v) => double.parse(v.toStringAsFixed(6));
+  static double _r(double v) => double.tryParse(v.toStringAsFixed(6)) ?? v;
 }

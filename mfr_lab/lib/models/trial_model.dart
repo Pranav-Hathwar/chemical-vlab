@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 /// Pure data class representing a single completed MFR trial run.
 ///
 /// All concentrations are in [mol/L], flow rates in [L/min],
@@ -118,7 +119,7 @@ class TrialModel {
 
   // ── Private helper ──────────────────────────────────────────────────
   /// Rounds a double to 6 significant decimal places for consistent output.
-  static double _r(double v) => double.parse(v.toStringAsFixed(6));
+  static double _r(double v) => double.tryParse(v.toStringAsFixed(6)) ?? v;
 }
 
 /// Column headers for the Excel sheet — matches [TrialModel.toExcelRow()] order.

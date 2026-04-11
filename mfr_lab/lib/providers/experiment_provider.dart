@@ -1,3 +1,4 @@
+// ignore_for_file: non_constant_identifier_names
 import 'package:flutter/foundation.dart';
 import '../models/trial_model.dart';
 import '../utils/mfr_solver.dart';
@@ -49,6 +50,9 @@ class ExperimentProvider extends ChangeNotifier {
   /// True once [initSession] has been called successfully.
   bool sessionStarted = false;
 
+  /// True while [runExperiment] is executing (prevents re-entrant double-tap).
+  bool isRunning = false;
+
   // ═══════════════════════════════════════════════════════════════════
   //  GETTERS
   // ═══════════════════════════════════════════════════════════════════
@@ -94,10 +98,17 @@ class ExperimentProvider extends ChangeNotifier {
     required double cB0Prime,
     required double vr,
   }) {
+    // Guard: do NOT overwrite _hiddenK if session is already running
+    // (student already has trials in progress, k must remain constant)
+    if (sessionStarted && _hiddenK != null) {
+      return null; // silently succeed — session already initialised
+    }
+
     // Validate: all fixed inputs must be positive real numbers
     if (cA0Prime <= 0) return 'CA0′ must be a positive number.';
     if (cB0Prime <= 0) return 'CB0′ must be a positive number.';
     if (vr <= 0) return 'VR must be a positive number.';
+    if (vr > 10000) return 'VR is physically unreasonable (>10,000 L).';
 
     // Store session-level fixed inputs
     CA0_prime = cA0Prime;
@@ -193,6 +204,9 @@ class ExperimentProvider extends ChangeNotifier {
   ///
   /// Returns the newly created [TrialModel] on success, or null if guards fail.
   TrialModel? runExperiment({required double vA, required double vB}) {
+    // Guard: prevent re-entrant double execution
+    if (isRunning) return null;
+
     // Guard: data must have been validated for this exact vA/vB pair
     if (!isDataValid) return null;
 
@@ -206,6 +220,7 @@ class ExperimentProvider extends ChangeNotifier {
     if (_hiddenK == null || VR == null) return null;
 
     late MFRResult result;
+    isRunning = true;
     try {
       result = MFRSolver.solve(
         CA0: _lastCA0!,
@@ -220,6 +235,7 @@ class ExperimentProvider extends ChangeNotifier {
       errorMessage =
           'Could not solve for these inputs. Try different vA/vB values.';
       isDataValid = false;
+      isRunning = false;
       notifyListeners();
       return null;
     }
@@ -244,11 +260,11 @@ class ExperimentProvider extends ChangeNotifier {
     trials.add(trial);
 
     // Reset validation flag: the next run MUST call checkData again.
-    // This prevents stale cached CA0/CB0 from being reused with different vA/vB.
     isDataValid = false;
     _lastCA0 = null;
     _lastCB0 = null;
     errorMessage = null;
+    isRunning = false;
 
     notifyListeners();
     return trial;
@@ -293,6 +309,7 @@ class ExperimentProvider extends ChangeNotifier {
     isDataValid = false;
     _lastCA0 = null;
     _lastCB0 = null;
+    isRunning = false;
 
     // Submission / reveal
     kRevealed = false;

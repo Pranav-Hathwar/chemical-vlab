@@ -26,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // k guess input
   final _kCtrl = TextEditingController();
 
+  bool _isExporting = false;
+
   @override
   void dispose() {
     _ca0Ctrl.dispose();
@@ -124,10 +126,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onExport(ExperimentProvider provider) async {
+    if (_isExporting) return;
     if (!provider.kRevealed) {
       _showError('Submit your k guess first before exporting.');
       return;
     }
+    setState(() => _isExporting = true);
     try {
       await exportToExcel(
         trials: provider.trials,
@@ -153,7 +157,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       _showError('Export failed: $e');
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
     }
   }
 
@@ -304,7 +311,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 20),
 
                       // ── CHECK RESULTS ──────────────────────────────────────────
-                      _ModernCard(
+                      if (provider.canSubmitK) ...[
+                        _ModernCard(
                         title: 'Verify Results',
                         icon: Icons.calculate_outlined,
                         iconColor: Colors.teal,
@@ -358,6 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
+                      ],
 
                       // ── RESET BUTTON ───────────────────────────────────────────
                       Center(
@@ -396,9 +405,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (provider.kRevealed) ...[
                         const SizedBox(height: 32),
                         ElevatedButton.icon(
-                          onPressed: () => _onExport(provider),
-                          icon: const Icon(Icons.download_rounded),
-                          label: const Text('Export Data to Excel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          onPressed: _isExporting ? null : () => _onExport(provider),
+                          icon: _isExporting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.download_rounded),
+                          label: Text(_isExporting ? 'Exporting...' : 'Export Data to Excel', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 18),
                             backgroundColor: const Color(0xFF4CAF50),
@@ -452,7 +461,7 @@ class _ModernCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: iconColor, size: 20),
