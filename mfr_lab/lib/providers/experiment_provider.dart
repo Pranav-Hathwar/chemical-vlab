@@ -254,6 +254,10 @@ class ExperimentProvider extends ChangeNotifier {
       m: result.m,
       XA: result.XA,
       CA: result.CA,
+      CB: result.CB,
+      CACB: result.CACB,
+      rA: result.rA,
+      kPerTrial: result.kPerTrial,
       graphY: result.graphY,
     );
 

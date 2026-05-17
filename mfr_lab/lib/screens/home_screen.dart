@@ -131,24 +131,51 @@ class _HomeScreenState extends State<HomeScreen> {
       _showError('Submit your k guess first before exporting.');
       return;
     }
+
+    final exportMode = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Export Excel Data'),
+        content: const Text('Would you like to save the file to your device or share it?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'save'),
+            child: const Text('Save to Device'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'share'),
+            child: const Text('Share File'),
+          ),
+        ],
+      ),
+    );
+
+    if (exportMode == null) return;
+
     setState(() => _isExporting = true);
     try {
-      await exportToExcel(
+      final savedPath = await exportToExcel(
         trials: provider.trials,
         studentK: provider.studentK!,
         actualK: provider.revealedK!,
         cA0Prime: provider.CA0_prime!,
         cB0Prime: provider.CB0_prime!,
         vR: provider.VR!,
+        saveMode: exportMode,
       );
       if (!mounted) return;
+      
+      final msg = savedPath != null 
+          ? 'File saved to:\n$savedPath'
+          : 'File exported successfully';
+          
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check_circle_outline, color: Colors.white),
-              SizedBox(width: 12),
-              Text('File exported successfully'),
+              const Icon(Icons.check_circle_outline, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text(msg)),
             ],
           ),
           backgroundColor: const Color(0xFF388E3C),

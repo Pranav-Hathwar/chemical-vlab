@@ -12,15 +12,16 @@ import '../models/trial_model.dart';
 // ─── Top-level function (called by ResultsScreen) ─────────────────────────────
 
 /// Convenience wrapper kept for backward compatibility with ResultsScreen.
-Future<void> exportToExcel({
+Future<String?> exportToExcel({
   required List<TrialModel> trials,
   required double studentK,
   required double actualK,
   required double cA0Prime,  // already stored on each TrialModel
   required double cB0Prime,
   required double vR,
+  String saveMode = 'share',
 }) =>
-    ExcelExporter.export(trials, studentK, actualK);
+    ExcelExporter.export(trials, studentK, actualK, saveMode);
 
 // ─── Excel Exporter ───────────────────────────────────────────────────────────
 
@@ -41,13 +42,17 @@ abstract final class ExcelExporter {
     'm',
     'XA',
     'CA (mol/L)',
-    'Y = XA / [(1-XA)(m-XA)]',
-  ]; // 13 columns → A..M
+    'CB (mol/L)',
+    'CA·CB (mol²/L²)',
+    'rA (mol/L·min)',
+    'k per trial (L/mol·min)',
+    'Y = XA / [CA0(1-XA)(m-XA)]',
+  ]; // 17 columns → A..Q
 
   // ── Column definitions: Sheet 2 ──────────────────────────────────────────────
   static const List<String> _graphHeaders = [
     'τ (min)',
-    'Y = XA / [(1-XA)(m-XA)]',
+    'Y = XA / [CA0(1-XA)(m-XA)]',
   ];
 
   // ── Palette (ARGB hex, no '#') ───────────────────────────────────────────────
@@ -61,10 +66,11 @@ abstract final class ExcelExporter {
   /// Builds the workbook, writes it to a temp file, and opens the share sheet.
   ///
   /// Throws an [Exception] with a descriptive message on failure.
-  static Future<void> export(
+  static Future<String?> export(
     List<TrialModel> trials,
     double studentK,
     double actualK,
+    String saveMode,
   ) async {
     if (trials.isEmpty) {
       throw Exception('No trial data to export. Complete at least one trial.');
@@ -107,25 +113,46 @@ abstract final class ExcelExporter {
       anchor.click();
       html.document.body!.children.remove(anchor);
       html.Url.revokeObjectUrl(url);
+      return 'Downloads folder';
     } else {
-      // ── 3. Mobile / Desktop Native Share ─────────────────────────────────────
-      // Requires writing to temporary disk space first so the OS share sheet can read it.
-      final dir = await getTemporaryDirectory();
-      final filePath = '${dir.path}/$fileName';
+      if (saveMode == 'save') {
+        Directory? dir;
+        if (Platform.isAndroid) {
+          dir = Directory('/storage/emulated/0/Download');
+        } else {
+          dir = await getDownloadsDirectory();
+          dir ??= await getApplicationDocumentsDirectory();
+        }
+        
+        if (dir != null && !await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        
+        final filePath = '${dir?.path ?? ''}/$fileName';
+        final file = File(filePath);
+        await file.writeAsBytes(bytes, flush: true);
+        return filePath;
+      } else {
+        // ── 3. Mobile / Desktop Native Share ─────────────────────────────────────
+        // Requires writing to temporary disk space first so the OS share sheet can read it.
+        final dir = await getTemporaryDirectory();
+        final filePath = '${dir.path}/$fileName';
 
-      final file = File(filePath);
-      await file.writeAsBytes(bytes, flush: true);
+        final file = File(filePath);
+        await file.writeAsBytes(bytes, flush: true);
 
-      if (!await file.exists()) {
-        throw Exception('Could not save file to temporary storage.');
+        if (!await file.exists()) {
+          throw Exception('Could not save file to temporary storage.');
+        }
+
+        // ── 4. Share ─────────────────────────────────────────────────────────────
+        await Share.shareXFiles(
+          [XFile(filePath, mimeType: mimeType)],
+          subject: 'MFR Virtual Lab Results — $dateStr',
+          text: 'MFR Lab trial data and graphical k determination results.',
+        );
+        return null;
       }
-
-      // ── 4. Share ─────────────────────────────────────────────────────────────
-      await Share.shareXFiles(
-        [XFile(filePath, mimeType: mimeType)],
-        subject: 'MFR Virtual Lab Results — $dateStr',
-        text: 'MFR Lab trial data and graphical k determination results.',
-      );
     }
   }
 
@@ -199,6 +226,10 @@ abstract final class ExcelExporter {
         DoubleCellValue(_r(t.m)),
         DoubleCellValue(_r(t.XA)),
         DoubleCellValue(_r(t.CA)),
+        DoubleCellValue(_r(t.CB)),
+        DoubleCellValue(_r(t.CACB)),
+        DoubleCellValue(_r(t.rA)),
+        DoubleCellValue(_r(t.kPerTrial)),
         DoubleCellValue(_r(t.graphY)),
       ];
 
@@ -241,7 +272,7 @@ abstract final class ExcelExporter {
 
     // ── Column widths ──────────────────────────────────────────────────────────
     final widths = [8.0, 14.0, 14.0, 10.0, 12.0, 12.0, 14.0, 14.0,
-                    10.0, 10.0, 10.0, 14.0, 26.0];
+                    10.0, 10.0, 10.0, 14.0, 14.0, 16.0, 16.0, 22.0, 26.0];
     for (int c = 0; c < widths.length; c++) {
       sheet.setColumnWidth(c, widths[c]);
     }
@@ -305,7 +336,7 @@ abstract final class ExcelExporter {
       sheet, noteRow, 0,
       TextCellValue(
           'Note: Plot Y vs τ — the line through the origin has '
-          'slope = k × CA0, allowing graphical determination of k.'),
+          'slope = k, allowing graphical determination of k.'),
       noteStyle,
     );
     sheet.merge(

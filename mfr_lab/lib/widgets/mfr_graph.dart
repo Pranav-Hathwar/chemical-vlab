@@ -13,10 +13,10 @@ const Color _kGrid  = Color(0xFFEEEEEE);
 /// Scatter chart with best-fit line overlay for graphical k determination.
 ///
 /// X-axis : τ (space time, min)
-/// Y-axis : Y = XA / [(1−XA)(m−XA)]
+/// Y-axis : Y = XA / [CA0·(1−XA)(m−XA)]
 ///
-/// From the MFR design equation: Y = k · CA₀ · τ
-/// So the regression line through the origin has  slope = k · CA₀.
+/// From the MFR design equation: Y = k · τ
+/// So the regression line through the origin has  slope = k.
 class MFRGraph extends StatefulWidget {
   final List<TrialModel> trials;
 
@@ -173,7 +173,7 @@ class _MFRGraphState extends State<MFRGraph> {
           axisNameWidget: const RotatedBox(
             quarterTurns: -1,
             child: Text(
-              'XA / [(1−XA)(m−XA)]',
+              'XA / [CA₀(1−XA)(m−XA)]',
               softWrap: false,
               style: TextStyle(
                 color: _kBlue,
@@ -331,7 +331,7 @@ class _MFRGraphState extends State<MFRGraph> {
         ],
       ),
       child: Text(
-        'Slope = k·CA₀ ≈ ${slope.toStringAsFixed(4)}',
+        'Slope = k ≈ ${slope.toStringAsFixed(4)}',
         style: const TextStyle(
           color: _kBlue,
           fontSize: 11,
@@ -373,7 +373,7 @@ class _MFRGraphState extends State<MFRGraph> {
                   ? Container(width: 8, height: 2.5, color: _kBlue)
                   : const SizedBox(width: 3)),
               const SizedBox(width: 6),
-              const Text('Best fit line  (slope = k·CA₀)',
+              const Text('Best fit line  (slope = k)',
                   style: TextStyle(fontSize: 12, color: Color(0xFF424242))),
             ],
           ),

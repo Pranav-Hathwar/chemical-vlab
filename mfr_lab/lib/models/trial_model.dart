@@ -38,6 +38,10 @@ class TrialModel {
 
   // ── Post-solve computed values ───────────────────────────────────────
   final double CA;     // CA0 * (1 - XA)                     [mol/L]  ← shown to student
+  final double CB;
+  final double CACB;
+  final double rA;
+  final double kPerTrial;
   final double graphY; // XA / [(1 - XA) * (m - XA)]         [mol/L]  ← used in Y vs τ plot
 
   // ── Named constructor ────────────────────────────────────────────────
@@ -54,6 +58,10 @@ class TrialModel {
     required this.m,
     required this.XA,
     required this.CA,
+    required this.CB,
+    required this.CACB,
+    required this.rA,
+    required this.kPerTrial,
     required this.graphY,
   });
 
@@ -76,6 +84,10 @@ class TrialModel {
       _r(m),
       _r(XA),
       _r(CA),
+      _r(CB),
+      _r(CACB),
+      _r(rA),
+      _r(kPerTrial),
       _r(graphY),
     ];
   }
@@ -96,6 +108,10 @@ class TrialModel {
       'm [-]': _r(m),
       'XA [-]': _r(XA),
       'CA [mol/L]': _r(CA),
+      'CB [mol/L]': _r(CB),
+      'CACB [mol²/L²]': _r(CACB),
+      'rA [mol/L·min]': _r(rA),
+      'kPerTrial [L/mol·min]': _r(kPerTrial),
       'graphY [mol/L]': _r(graphY),
     };
   }
@@ -113,6 +129,10 @@ class TrialModel {
         'm=${m.toStringAsFixed(4)}, '
         'XA=${XA.toStringAsFixed(6)}, '
         'CA=${CA.toStringAsFixed(6)}, '
+        'CB=${CB.toStringAsFixed(6)}, '
+        'CACB=${CACB.toStringAsFixed(6)}, '
+        'rA=${rA.toStringAsFixed(6)}, '
+        'kPerTrial=${kPerTrial.toStringAsFixed(6)}, '
         'Y=${graphY.toStringAsFixed(6)}'
         '}';
   }
@@ -136,5 +156,9 @@ const List<String> kTrialExcelHeaders = [
   'm [-]',
   'XA [-]',
   'CA [mol/L]',
+  'CB [mol/L]',
+  'CACB [mol²/L²]',
+  'rA [mol/L·min]',
+  'kPerTrial [L/mol·min]',
   'Y [mol/L]',
 ];

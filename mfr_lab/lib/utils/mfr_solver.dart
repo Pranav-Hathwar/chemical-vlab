@@ -48,6 +48,11 @@ final class MFRResult {
   /// This is the ONLY value shown to the student during the trial phase.
   final double CA;
 
+  final double CB;
+  final double CACB;
+  final double rA;
+  final double kPerTrial;
+
   /// Space time:  τ = VR / (vA + vB)  [min]
   final double tau;
 
@@ -63,6 +68,10 @@ final class MFRResult {
   const MFRResult({
     required this.XA,
     required this.CA,
+    required this.CB,
+    required this.CACB,
+    required this.rA,
+    required this.kPerTrial,
     required this.tau,
     required this.m,
     required this.graphY,
@@ -83,8 +92,7 @@ class MFRSolverException implements Exception {
   });
 
   @override
-  String toString() =>
-      'MFRSolverException: $message '
+  String toString() => 'MFRSolverException: $message '
       '(iterations attempted: $iterationsAttempted)';
 }
 
@@ -227,7 +235,8 @@ abstract final class MFRSolver {
       // Guard against zero derivative (flat region — shouldn't happen in range)
       if (fPrimeXA.abs() < 1e-15) {
         throw MFRSolverException(
-          message: 'Derivative is zero at XA=$XA; Newton-Raphson cannot continue.',
+          message:
+              'Derivative is zero at XA=$XA; Newton-Raphson cannot continue.',
           iterationsAttempted: iter,
         );
       }
@@ -258,15 +267,28 @@ abstract final class MFRSolver {
     // Fraction (1−XA) of inlet A remains unreacted.
     final double CA = CA0 * (1.0 - XA);
 
-    // Linearisation variable for the Y vs τ graph.
-    // Derived from the design equation:
-    //   k·CA0·τ·(1−XA)(m−XA) = XA
-    //   ⟹  Y = XA/[(1−XA)(m−XA)] = k·CA0·τ
-    // So a plot of Y vs τ has slope = k·CA0, allowing k to be extracted
-    // once CA0 is known from the trial inputs.
-    final double graphY = XA / ((1.0 - XA) * (m - XA));
+    final double CB = CB0 - CA0 * XA;
+    final double CACB = CA * CB;
+    final double rA = CA0 * XA / tau;
+    final double kPerTrial = rA / CACB;
 
-    return MFRResult(XA: XA, CA: CA, tau: tau, m: m, graphY: graphY);
+    /// Linearisation variable for the Y vs τ graph:
+    ///   Y = XA / [CA0 · (1 − XA)(m − XA)]
+    /// From the design equation:  Y = k · τ
+    /// So a plot of Y vs τ is linear through the origin with slope = k.
+    final double graphY = XA / (CA0 * (1.0 - XA) * (m - XA));
+
+    return MFRResult(
+      XA: XA,
+      CA: CA,
+      CB: CB,
+      CACB: CACB,
+      rA: rA,
+      kPerTrial: kPerTrial,
+      tau: tau,
+      m: m,
+      graphY: graphY,
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────
