@@ -16,7 +16,7 @@ Future<String?> exportToExcel({
   required List<TrialModel> trials,
   required double studentK,
   required double actualK,
-  required double cA0Prime,  // already stored on each TrialModel
+  required double cA0Prime, // already stored on each TrialModel
   required double cB0Prime,
   required double vR,
   String saveMode = 'share',
@@ -56,10 +56,10 @@ abstract final class ExcelExporter {
   ];
 
   // ── Palette (ARGB hex, no '#') ───────────────────────────────────────────────
-  static final ExcelColor _deepBlue   = ExcelColor.fromHexString('FF1A237E');
-  static final ExcelColor _white      = ExcelColor.fromHexString('FFFFFFFF');
-  static final ExcelColor _lightGrey  = ExcelColor.fromHexString('FFF5F5F5');
-  static final ExcelColor _summaryBg  = ExcelColor.fromHexString('FFE8EAF6');
+  static final ExcelColor _deepBlue = ExcelColor.fromHexString('FF1A237E');
+  static final ExcelColor _white = ExcelColor.fromHexString('FFFFFFFF');
+  static final ExcelColor _lightGrey = ExcelColor.fromHexString('FFF5F5F5');
+  static final ExcelColor _summaryBg = ExcelColor.fromHexString('FFE8EAF6');
 
   // ── Public entry point ───────────────────────────────────────────────────────
 
@@ -96,7 +96,8 @@ abstract final class ExcelExporter {
 
     final dateStr = DateFormat('dd-MM-yyyy_HH-mm').format(DateTime.now());
     final fileName = 'MFR_Lab_$dateStr.xlsx';
-    const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const mimeType =
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     if (kIsWeb) {
       // ── 3. Web Download ──────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ abstract final class ExcelExporter {
         ..href = url
         ..style.display = 'none'
         ..download = fileName;
-        
+
       html.document.body!.children.add(anchor);
       anchor.click();
       html.document.body!.children.remove(anchor);
@@ -123,11 +124,11 @@ abstract final class ExcelExporter {
           dir = await getDownloadsDirectory();
           dir ??= await getApplicationDocumentsDirectory();
         }
-        
+
         if (dir != null && !await dir.exists()) {
           await dir.create(recursive: true);
         }
-        
+
         final filePath = '${dir?.path ?? ''}/$fileName';
         final file = File(filePath);
         await file.writeAsBytes(bytes, flush: true);
@@ -177,7 +178,8 @@ abstract final class ExcelExporter {
       horizontalAlign: HorizontalAlign.Center,
       verticalAlign: VerticalAlign.Center,
     );
-    _set(sheet, 0, 0, TextCellValue('MFR Virtual Lab — Trial Data'), titleStyle);
+    _set(
+        sheet, 0, 0, TextCellValue('MFR Virtual Lab — Trial Data'), titleStyle);
 
     // Merge A1 across all columns
     sheet.merge(
@@ -205,9 +207,9 @@ abstract final class ExcelExporter {
 
     // ── Rows 3…N+2: One row per trial ──────────────────────────────────────────
     for (int i = 0; i < trials.length; i++) {
-      final t    = trials[i];
-      final row  = i + 3;
-      final bg   = i.isEven ? _white : _lightGrey;
+      final t = trials[i];
+      final row = i + 3;
+      final bg = i.isEven ? _white : _lightGrey;
       final style = CellStyle(
         backgroundColorHex: bg,
         horizontalAlign: HorizontalAlign.Center,
@@ -239,8 +241,8 @@ abstract final class ExcelExporter {
     }
 
     // ── Summary rows (after one blank row) ────────────────────────────────────
-    final int lastDataRow  = trials.length + 3; // 0-indexed
-    final int summaryStart = lastDataRow + 1;   // +1 blank spacer
+    final int lastDataRow = trials.length + 3; // 0-indexed
+    final int summaryStart = lastDataRow + 1; // +1 blank spacer
 
     final labelStyle = CellStyle(
       bold: true,
@@ -257,22 +259,40 @@ abstract final class ExcelExporter {
     final pctError = (studentK - actualK).abs() / actualK * 100;
 
     final summaryRows = [
-      ["Student's Determined k",  DoubleCellValue(_r(studentK))],
-      ['Actual k (hidden)',        DoubleCellValue(_r(actualK))],
-      ['Percentage Error (%)',     DoubleCellValue(_r(pctError))],
-      ['Min required trials',      const IntCellValue(3)],
-      ['Max allowed trials',       const IntCellValue(12)],
+      ["Student's Determined k", DoubleCellValue(_r(studentK))],
+      ['Actual k (hidden)', DoubleCellValue(_r(actualK))],
+      ['Percentage Error (%)', DoubleCellValue(_r(pctError))],
+      ['Min required trials', const IntCellValue(3)],
+      ['Max allowed trials', const IntCellValue(12)],
     ];
 
     for (int i = 0; i < summaryRows.length; i++) {
       final row = summaryStart + i;
-      _set(sheet, row, 0, TextCellValue(summaryRows[i][0] as String), labelStyle);
+      _set(sheet, row, 0, TextCellValue(summaryRows[i][0] as String),
+          labelStyle);
       _set(sheet, row, 1, summaryRows[i][1] as CellValue, valueStyle);
     }
 
     // ── Column widths ──────────────────────────────────────────────────────────
-    final widths = [8.0, 14.0, 14.0, 10.0, 12.0, 12.0, 14.0, 14.0,
-                    10.0, 10.0, 10.0, 14.0, 14.0, 16.0, 16.0, 22.0, 26.0];
+    final widths = [
+      8.0,
+      14.0,
+      14.0,
+      10.0,
+      12.0,
+      12.0,
+      14.0,
+      14.0,
+      10.0,
+      10.0,
+      10.0,
+      14.0,
+      14.0,
+      16.0,
+      16.0,
+      22.0,
+      26.0
+    ];
     for (int c = 0; c < widths.length; c++) {
       sheet.setColumnWidth(c, widths[c]);
     }
@@ -294,7 +314,10 @@ abstract final class ExcelExporter {
       fontSize: 13,
       fontColorHex: _deepBlue,
     );
-    _set(sheet, 0, 0,
+    _set(
+        sheet,
+        0,
+        0,
         TextCellValue('Graph Data — τ vs Y for Graphical k Determination'),
         titleStyle);
     sheet.merge(
@@ -315,14 +338,14 @@ abstract final class ExcelExporter {
 
     // ── Data rows ──────────────────────────────────────────────────────────────
     for (int i = 0; i < trials.length; i++) {
-      final t   = trials[i];
+      final t = trials[i];
       final row = i + 3;
-      final bg  = i.isEven ? _white : _lightGrey;
+      final bg = i.isEven ? _white : _lightGrey;
       final style = CellStyle(
         backgroundColorHex: bg,
         horizontalAlign: HorizontalAlign.Center,
       );
-      _set(sheet, row, 0, DoubleCellValue(_r(t.tau)),    style);
+      _set(sheet, row, 0, DoubleCellValue(_r(t.tau)), style);
       _set(sheet, row, 1, DoubleCellValue(_r(t.graphY)), style);
     }
 
@@ -333,9 +356,10 @@ abstract final class ExcelExporter {
       fontColorHex: ExcelColor.fromHexString('FF757575'),
     );
     _set(
-      sheet, noteRow, 0,
-      TextCellValue(
-          'Note: Plot Y vs τ — the line through the origin has '
+      sheet,
+      noteRow,
+      0,
+      TextCellValue('Note: Plot Y vs τ — the line through the origin has '
           'slope = k, allowing graphical determination of k.'),
       noteStyle,
     );
