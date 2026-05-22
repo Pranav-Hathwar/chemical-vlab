@@ -1,0 +1,86 @@
+// Prisma schema for the MFR Virtual Lab backend.
+// Mirrors the PostgreSQL schema in the integration spec. CHECK constraints
+// (role/provider/status enums) are enforced in application code since Prisma
+// does not model CHECK constraints in the schema language.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  displayName  String   @map("display_name") @db.VarChar(255)
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  role         String   @default("student") @db.VarChar(20) // 'admin' | 'student'
+  provider     String   @default("email") @db.VarChar(20) // 'email' | 'google'
+  providerId   String?  @map("provider_id") @db.VarChar(255)
+  photoUrl     String?  @map("photo_url") @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastLoginAt  DateTime @default(now()) @map("last_login_at")
+
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Session {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  encryptedK  String    @map("encrypted_k") @db.VarChar(500)
+  studentK    Decimal?  @map("student_k") @db.Decimal(10, 6)
+  kRevealed   Boolean   @default(false) @map("k_revealed")
+  accuracyPct Decimal?  @map("accuracy_pct") @db.Decimal(8, 4)
+  trialCount  Int       @default(0) @map("trial_count")
+  status      String    @default("active") @db.VarChar(20) // 'active' | 'completed' | 'abandoned'
+  ca0Prime    Decimal   @map("ca0_prime") @db.Decimal(10, 6)
+  cb0Prime    Decimal   @map("cb0_prime") @db.Decimal(10, 6)
+  vr          Decimal   @db.Decimal(10, 6)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  trials  Trial[]
+
+  @@map("sessions")
+}
+
+model Trial {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  runNumber Int      @map("run_number")
+  va        Decimal  @db.Decimal(10, 6)
+  vb        Decimal  @db.Decimal(10, 6)
+  ca0       Decimal  @db.Decimal(10, 6)
+  cb0       Decimal  @db.Decimal(10, 6)
+  tau       Decimal  @db.Decimal(10, 6)
+  m         Decimal  @db.Decimal(10, 6)
+  xa        Decimal  @db.Decimal(10, 6)
+  ca        Decimal  @db.Decimal(10, 6)
+  graphY    Decimal  @map("graph_y") @db.Decimal(10, 6)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, runNumber])
+  @@map("trials")
+}

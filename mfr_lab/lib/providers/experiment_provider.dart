@@ -1,6 +1,8 @@
 // ignore_for_file: non_constant_identifier_names
 import 'package:flutter/foundation.dart';
+import '../constants.dart';
 import '../models/trial_model.dart';
+import '../services/session_service.dart';
 import '../utils/mfr_solver.dart';
 
 /// Central state manager for a single MFR Virtual Lab session.
@@ -53,6 +55,19 @@ class ExperimentProvider extends ChangeNotifier {
   /// True while [runExperiment] is executing (prevents re-entrant double-tap).
   bool isRunning = false;
 
+  // ── Backend sync (added — see attachBackend) ─────────────────────────
+  // Maximum trials per session is the global [kMaxTrials] (= 10, was 12),
+  // enforced here AND on the server.
+
+  /// Optional backend handle. When null the lab still works fully offline.
+  SessionService? _backend;
+
+  /// Server-side session id once a session is created; null when offline.
+  String? sessionId;
+
+  /// Last non-fatal backend sync error (surfaced as a soft warning in the UI).
+  String? backendError;
+
   // ═══════════════════════════════════════════════════════════════════
   //  GETTERS
   // ═══════════════════════════════════════════════════════════════════
@@ -60,14 +75,14 @@ class ExperimentProvider extends ChangeNotifier {
   /// Total number of completed trials this session.
   int get trialCount => trials.length;
 
-  /// Whether additional trials are still allowed (max 12).
-  bool get canRunMore => trials.length < 12;
+  /// Whether additional trials are still allowed (max [kMaxTrials]).
+  bool get canRunMore => trials.length < kMaxTrials;
 
   /// Whether the student has run enough trials to submit their k guess (min 3).
   bool get canSubmitK => trials.length >= 3;
 
-  /// True when the maximum of 12 trials has been reached.
-  bool get sessionComplete => trials.length >= 12;
+  /// True when the maximum of [kMaxTrials] trials has been reached.
+  bool get sessionComplete => trials.length >= kMaxTrials;
 
   /// Percentage accuracy of the student's k guess relative to the hidden k.
   /// Returns 0.0 if k has not been revealed yet.
@@ -93,11 +108,16 @@ class ExperimentProvider extends ChangeNotifier {
   /// hidden k for this session using [MFRSolver.generateK].
   ///
   /// Returns an error message string if validation fails, null on success.
-  String? initSession({
+  ///
+  /// Backend sync (added): after the existing local setup, this creates a
+  /// session on the server and adopts the SERVER-generated hidden k (kept
+  /// private, never shown until submit). If the backend is unavailable the lab
+  /// falls back to a locally generated k so it still works offline.
+  Future<String?> initSession({
     required double cA0Prime,
     required double cB0Prime,
     required double vr,
-  }) {
+  }) async {
     // Guard: do NOT overwrite _hiddenK if session is already running
     // (student already has trials in progress, k must remain constant)
     if (sessionStarted && _hiddenK != null) {
@@ -115,7 +135,8 @@ class ExperimentProvider extends ChangeNotifier {
     CB0_prime = cB0Prime;
     VR = vr;
 
-    // Generate a fresh hidden k — one per session, never changes mid-session
+    // Generate a fresh hidden k — one per session, never changes mid-session.
+    // (Default/offline value; overridden by the server's k when available.)
     _hiddenK = MFRSolver.generateK();
 
     // Reset all per-session mutable state (in case of re-init)
@@ -126,7 +147,25 @@ class ExperimentProvider extends ChangeNotifier {
     _lastCA0 = null;
     _lastCB0 = null;
     errorMessage = null;
+    backendError = null;
+    sessionId = null;
     sessionStarted = true;
+
+    // ── Backend: create the session and adopt the server's hidden k ──────────
+    if (_backend != null) {
+      try {
+        final created = await _backend!.createSession(
+          ca0Prime: cA0Prime,
+          cb0Prime: cB0Prime,
+          vr: vr,
+        );
+        sessionId = created.session.id;
+        _hiddenK = created.hiddenK; // server-owned k drives the simulation
+      } catch (e) {
+        // Non-fatal: keep the local k so the lab still functions offline.
+        backendError = 'Working offline — results will not be saved.';
+      }
+    }
 
     notifyListeners();
     return null; // success
@@ -270,8 +309,35 @@ class ExperimentProvider extends ChangeNotifier {
     errorMessage = null;
     isRunning = false;
 
+    // Backend: persist this trial in the background (never blocks the UI).
+    _syncTrial(trial);
+
     notifyListeners();
     return trial;
+  }
+
+  /// Fire-and-forget: persist a completed trial to the backend. Failures are
+  /// recorded as a soft warning and never interrupt the experiment.
+  void _syncTrial(TrialModel t) {
+    if (_backend == null || sessionId == null) return;
+    _backend!
+        .recordTrial(
+          sessionId: sessionId!,
+          runNumber: t.runNumber,
+          va: t.vA,
+          vb: t.vB,
+          ca0: t.CA0,
+          cb0: t.CB0,
+          tau: t.tau,
+          m: t.m,
+          xa: t.XA,
+          ca: t.CA,
+          graphY: t.graphY,
+        )
+        .catchError((Object e) {
+      backendError = 'A trial could not be saved to the server.';
+      return 0;
+    });
   }
 
   // ── 4. submitStudentK ────────────────────────────────────────────────
@@ -288,7 +354,25 @@ class ExperimentProvider extends ChangeNotifier {
 
     studentK = k;
     kRevealed = true;
+
+    // Backend: persist the guess + mark the session completed (background).
+    // The revealed k is the same server-owned k already held locally, so the
+    // reveal is instant and also works offline.
+    _syncSubmit(k);
+
     notifyListeners();
+  }
+
+  /// Fire-and-forget submit to the backend. On success it adopts the server's
+  /// authoritative actual k (identical to the local one) for total consistency.
+  void _syncSubmit(double k) {
+    if (_backend == null || sessionId == null) return;
+    _backend!.submitK(sessionId: sessionId!, studentK: k).then((res) {
+      _hiddenK = res.actualK;
+      notifyListeners();
+    }).catchError((Object e) {
+      backendError = 'Your result could not be saved to the server.';
+    });
   }
 
   // ── 5. resetSession ──────────────────────────────────────────────────
@@ -322,6 +406,45 @@ class ExperimentProvider extends ChangeNotifier {
     // UI
     errorMessage = null;
     sessionStarted = false;
+
+    // Backend handles
+    sessionId = null;
+    backendError = null;
+
+    notifyListeners();
+  }
+
+  // ── 6. Backend wiring (added) ─────────────────────────────────────────
+
+  /// Inject the authenticated [SessionService] so the provider can persist a
+  /// student's work. Called once from the student home screen after login.
+  void attachBackend(SessionService backend) {
+    _backend = backend;
+  }
+
+  /// Restore an in-progress session fetched from the backend (resume flow).
+  ///
+  /// Repopulates the fixed inputs, the server's hidden k, and all completed
+  /// trials so the student can continue exactly where they left off.
+  void restoreFromBackend(SessionWithKey data) {
+    final s = data.session;
+    CA0_prime = s.ca0Prime;
+    CB0_prime = s.cb0Prime;
+    VR = s.vr;
+    _hiddenK = data.hiddenK;
+    sessionId = s.id;
+
+    trials = s.toTrialModels();
+
+    isDataValid = false;
+    _lastCA0 = null;
+    _lastCB0 = null;
+    isRunning = false;
+    kRevealed = s.kRevealed;
+    studentK = s.studentK;
+    errorMessage = null;
+    backendError = null;
+    sessionStarted = true;
 
     notifyListeners();
   }

@@ -20,7 +20,7 @@ if (flutterVersionName == null) flutterVersionName = '1.0.0'
 
 android {
     namespace "com.mfrlab.mfr_lab"
-    compileSdk 35
+    compileSdk 36
     ndkVersion "28.2.13676358"
 
     compileOptions {
@@ -38,18 +38,26 @@ android {
 
     defaultConfig {
         applicationId "com.mfrlab.mfr_lab"
+        // Google Sign-In requires 21+; multiDex covers the auth/dio plugin set.
         minSdkVersion flutter.minSdkVersion
         targetSdk 34
+        multiDexEnabled true
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
     buildTypes {
         release {
+            // TODO(release): replace debug signing with a real release keystore.
             signingConfig signingConfigs.debug
         }
     }
 }
+
+// ADD YOUR SHA-1 TO GOOGLE CLOUD CONSOLE BEFORE RELEASE
+//   Get it with:  ./gradlew signingReport   (or keytool -list -v -keystore <ks>)
+//   Then add the SHA-1 to your Google OAuth Android client in Google Cloud Console
+//   so Google Sign-In works on release builds.
 
 flutter {
     source '../..'

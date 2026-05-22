@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/auth_provider.dart';
 import 'providers/experiment_provider.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/home_screen.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ExperimentProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ExperimentProvider()),
+      ],
       child: const MFRVirtualLabApp(),
     ),
   );
@@ -156,8 +162,72 @@ class MFRVirtualLabApp extends StatelessWidget {
         ),
       ),
 
-      // ─── Direct Mobile Routing ──────────────────────────
-      home: const HomeScreen(),
+      // ─── Auth-gated routing ─────────────────────────────
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+/// Decides which screen to show based on auth state:
+///   • bootstrapping        → splash/loading
+///   • unauthenticated      → LoginScreen
+///   • authenticated admin  → AdminDashboardScreen
+///   • authenticated student→ HomeScreen (the existing lab)
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Restore any persisted session once, after first frame.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<AuthProvider>().bootstrap(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    switch (auth.status) {
+      case AuthStatus.unknown:
+        return const _SplashScreen();
+      case AuthStatus.authenticating:
+        // Keep showing the login screen (it renders its own busy state) unless
+        // we have never resolved auth yet.
+        return auth.user == null ? const LoginScreen() : const _SplashScreen();
+      case AuthStatus.unauthenticated:
+        return const LoginScreen();
+      case AuthStatus.authenticated:
+        return auth.isAdmin
+            ? const AdminDashboardScreen()
+            : const HomeScreen();
+    }
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF1A237E),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.science_outlined, color: Colors.white, size: 56),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Colors.white),
+          ],
+        ),
+      ),
     );
   }
 }

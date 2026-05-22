@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../constants.dart';
+import '../providers/auth_provider.dart';
 import '../providers/experiment_provider.dart';
 import '../widgets/reactor_diagram.dart';
 import '../widgets/trial_table.dart';
-import '../widgets/mfr_graph.dart';
 import '../utils/excel_exporter.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,6 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isExporting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Wire the provider to the authenticated backend, then offer to resume any
+    // active session left from a previous app run.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initBackendAndResume());
+  }
+
+  @override
   void dispose() {
     _ca0Ctrl.dispose();
     _cb0Ctrl.dispose();
@@ -37,6 +46,77 @@ class _HomeScreenState extends State<HomeScreen> {
     _vbCtrl.dispose();
     _kCtrl.dispose();
     super.dispose();
+  }
+
+  // Attach the backend and, if an active session exists, prompt to resume it.
+  Future<void> _initBackendAndResume() async {
+    final exp = context.read<ExperimentProvider>();
+    final auth = context.read<AuthProvider>();
+    exp.attachBackend(auth.sessions);
+
+    if (exp.sessionStarted) return; // already in a session this run
+
+    try {
+      final active = await auth.sessions.getActiveSession();
+      if (active == null || !mounted) return;
+
+      final resume = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Resume previous session?'),
+          content: Text(
+            'You have an unfinished session with '
+            '${active.session.trialCount} trial'
+            '${active.session.trialCount == 1 ? '' : 's'}. '
+            'Resume it, or start a new one?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Start New'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Resume'),
+            ),
+          ],
+        ),
+      );
+
+      if (resume == true && mounted) {
+        exp.restoreFromBackend(active);
+        _ca0Ctrl.text = active.session.ca0Prime.toString();
+        _cb0Ctrl.text = active.session.cb0Prime.toString();
+        _vrCtrl.text = active.session.vr.toString();
+      }
+      // "Start New" just proceeds; the next session created on the server
+      // automatically abandons this stale one.
+    } catch (_) {
+      // Offline or backend down — silently continue; the lab still works.
+    }
+  }
+
+  Future<void> _logout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('Your saved progress will be here when you return.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Log out')),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      context.read<ExperimentProvider>().resetSession();
+      await context.read<AuthProvider>().logout();
+    }
   }
 
   // Helper for numeric parsing
@@ -59,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Logic: Check the data button
-  void _onCheckData() {
+  Future<void> _onCheckData() async {
     final ca0 = _parse(_ca0Ctrl.text);
     final cb0 = _parse(_cb0Ctrl.text);
     final vr = _parse(_vrCtrl.text);
@@ -76,10 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final provider = context.read<ExperimentProvider>();
-    
-    // Once "Check the data" is clicked for the first time, session is fixed
+
+    // Once "Check the data" is clicked for the first time, session is fixed.
+    // initSession now also creates the backend session (await it).
     if (!provider.sessionStarted) {
-      final err = provider.initSession(cA0Prime: ca0, cB0Prime: cb0, vr: vr);
+      final err = await provider.initSession(cA0Prime: ca0, cB0Prime: cb0, vr: vr);
+      if (!mounted) return;
       if (err != null) {
         _showError(err);
         return;
@@ -193,10 +275,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return Consumer<ExperimentProvider>(
       builder: (context, provider, _) {
         final lockFixedInputs = provider.sessionStarted;
-        final latestCa = provider.trials.isNotEmpty 
+        final latestCa = provider.trials.isNotEmpty
             ? provider.trials.last.CA.toStringAsFixed(4)
             : '0.0000';
 
@@ -208,6 +291,22 @@ class _HomeScreenState extends State<HomeScreen> {
             foregroundColor: Colors.white,
             elevation: 0,
             centerTitle: true,
+            actions: [
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Text(
+                    auth.user?.displayName ?? '',
+                    style: const TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Log out',
+                onPressed: _logout,
+              ),
+            ],
           ),
           body: SafeArea(
             child: SingleChildScrollView(
@@ -219,21 +318,33 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       
-                      // ── DIAGRAM ────────────────────────────────────────────────
-                      Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                          child: Center(
-                            child: Container(
-                              width: 220,
-                              height: 140,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+                      // ── DIAGRAM (real lab image; painter fallback if missing) ──
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.10),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            kReactorImagePath,
+                            fit: BoxFit.contain,
+                            width: double.infinity,
+                            height: 220,
+                            semanticLabel: 'Mixed Flow Reactor Diagram',
+                            // Fallback to the original CustomPainter if the asset
+                            // is missing — keeps ReactorDiagram referenced & robust.
+                            errorBuilder: (context, error, stack) => Container(
+                              width: double.infinity,
+                              height: 220,
+                              color: Colors.white,
                               padding: const EdgeInsets.all(8),
                               child: const ReactorDiagram(),
                             ),
@@ -423,10 +534,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 24),
                         
+                        // NOTE: Students do NOT see the graph. The MFRGraph
+                        // widget remains in the codebase and is shown only in
+                        // the admin session view.
                         TrialTable(trials: provider.trials),
-                        const SizedBox(height: 32),
-                        
-                        MFRGraph(trials: provider.trials),
                       ],
 
                       if (provider.kRevealed) ...[

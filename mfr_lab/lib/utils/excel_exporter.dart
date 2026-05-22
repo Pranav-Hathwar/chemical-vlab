@@ -117,19 +117,19 @@ abstract final class ExcelExporter {
       return 'Downloads folder';
     } else {
       if (saveMode == 'save') {
-        Directory? dir;
+        Directory dir;
         if (Platform.isAndroid) {
           dir = Directory('/storage/emulated/0/Download');
         } else {
-          dir = await getDownloadsDirectory();
-          dir ??= await getApplicationDocumentsDirectory();
+          dir = await getDownloadsDirectory() ??
+              await getApplicationDocumentsDirectory();
         }
 
-        if (dir != null && !await dir.exists()) {
+        if (!await dir.exists()) {
           await dir.create(recursive: true);
         }
 
-        final filePath = '${dir?.path ?? ''}/$fileName';
+        final filePath = '${dir.path}/$fileName';
         final file = File(filePath);
         await file.writeAsBytes(bytes, flush: true);
         return filePath;
