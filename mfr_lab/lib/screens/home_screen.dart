@@ -7,6 +7,7 @@ import '../providers/experiment_provider.dart';
 import '../widgets/reactor_diagram.dart';
 import '../widgets/trial_table.dart';
 import '../utils/excel_exporter.dart';
+import 'guide_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -292,6 +293,13 @@ class _HomeScreenState extends State<HomeScreen> {
             elevation: 0,
             centerTitle: true,
             actions: [
+              IconButton(
+                icon: const Icon(Icons.help_outline_rounded),
+                tooltip: 'Lab Guide',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GuideScreen()),
+                ),
+              ),
               Center(
                 child: Padding(
                   padding: const EdgeInsets.only(right: 4),
