@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MFR Lab (Flutter Web)",
+      "request": "launch",
+      "type": "dart",
+      "program": "mfr_lab/lib/main.dart",
+      "args": [
+        "-d",
+        "chrome",
+        "--web-port",
+        "8087",
+        "--dart-define=GOOGLE_CLIENT_ID=885363054408-83umtpl7dlgaql9732958ecchce8nf9p.apps.googleusercontent.com"
+      ]
+    },
+    {
+      "name": "MFR Lab (Android Emulator / AVD)",
+      "request": "launch",
+      "type": "dart",
+      "program": "mfr_lab/lib/main.dart"
+    }
+  ]
+}
