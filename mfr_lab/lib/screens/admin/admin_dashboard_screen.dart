@@ -113,42 +113,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // ── Stats grid ──────────────────────────────────────────────────────
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.5,
-          children: [
-            StatsCard(
-              icon: Icons.people_alt_outlined,
-              color: const Color(0xFF1A237E),
-              label: 'Students',
-              value: '${_stats?.totalStudents ?? 0}',
-            ),
-            StatsCard(
-              icon: Icons.science_outlined,
-              color: const Color(0xFF00897B),
-              label: 'Sessions',
-              value: '${_stats?.totalSessions ?? 0}',
-            ),
-            StatsCard(
-              icon: Icons.check_circle_outline,
-              color: const Color(0xFF388E3C),
-              label: 'Completed',
-              value: '${_stats?.completedSessions ?? 0}',
-            ),
-            StatsCard(
-              icon: Icons.percent_outlined,
-              color: const Color(0xFFFFA000),
-              label: 'Avg % error',
-              value: _stats?.avgAccuracyPct != null
-                  ? _stats!.avgAccuracyPct!.toStringAsFixed(1)
-                  : '—',
-            ),
-          ],
+        // ── Stats Row ───────────────────────────────────────────────────────
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: StatsCard(
+                  icon: Icons.people_alt_outlined,
+                  color: const Color(0xFF1A237E),
+                  label: 'Students',
+                  value: '${_stats?.totalStudents ?? 0}',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatsCard(
+                  icon: Icons.science_outlined,
+                  color: const Color(0xFF00897B),
+                  label: 'Sessions',
+                  value: '${_stats?.totalSessions ?? 0}',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatsCard(
+                  icon: Icons.check_circle_outline,
+                  color: const Color(0xFF388E3C),
+                  label: 'Completed',
+                  value: '${_stats?.completedSessions ?? 0}',
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
 
